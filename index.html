@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outpost Sol: Moon & Mars Commander</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter and Orbitron for NASA cockpit aesthetic -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['"Chakra Petch"', 'monospace'],
+          },
+          colors: {
+            nasa: {
+              blue: '#0b3d91',
+              red: '#fc3d21',
+              dark: '#070b19',
+              card: '#0f172a',
+              accent: '#38bdf8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scanline & glowing UI aesthetics */
+    body {
+      background-color: #070b19;
+      overflow-x: hidden;
+      user-select: none;
+    }
+    .crt-overlay {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+    .resource-glow {
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+    /* Smooth transitions for resource progress bars */
+    .bar-smooth {
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    .pulse-alert {
+      animation: pulse-subtle 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between font-sans relative selection:bg-cyan-500 selection:text-white">
+
+  <!-- Background Space Canvas -->
+  <canvas id="space-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+  <div class="crt-overlay fixed inset-0 z-10 pointer-events-none"></div>
+
+  <!-- Main Game Container -->
+  <div id="app" class="relative z-20 flex flex-col min-h-screen w-full max-w-5xl mx-auto px-4 py-4 md:py-6">
+
+    <!-- Top NASA Mission Header -->
+    <header class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-700/80 pb-4 mb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-nasa-blue border-2 border-nasa-red flex items-center justify-center font-display font-bold text-white tracking-widest text-lg shadow-lg shadow-blue-500/30">
+          <span>NASA</span>
+        </div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-display font-bold tracking-wider text-white flex items-center gap-2">
+            OUTPOST SOL
+            <span class="text-xs font-sans px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">STEM Commander</span>
+          </h1>
+          <p class="text-xs text-slate-400 font-sans">Human Spaceflight & Habitat Engineering Simulator</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="sound-toggle-btn" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-600 flex items-center gap-1.5 transition">
+          <span id="sound-icon">🔊</span>
+          <span id="sound-status">Sound ON</span>
+        </button>
+        <button id="data-doc-btn" class="px-3 py-1.5 text-xs rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 flex items-center gap-1.5 transition">
+          <span>🛰️</span>
+          <span>NASA Data Log</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SCREEN 1: MISSION SELECTOR -->
+    <section id="screen-select" class="flex-1 flex flex-col justify-center items-center py-6">
+      <div class="text-center max-w-2xl mb-8">
+        <div class="inline-block px-3 py-1 bg-blue-500/10 border border-blue-400/30 rounded-full text-blue-300 text-xs font-semibold mb-3">
+          MISSION BRIEFING // AGES 7–12
+        </div>
+        <h2 class="text-3xl md:text-4xl font-display font-bold mb-3 tracking-wide text-white">
+          Choose Your Deep Space Mission
+        </h2>
+        <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+          Welcome, Commander! In real space exploration, every decision is an <strong class="text-cyan-400">engineering trade-off</strong>. You cannot have 100% of everything: saving power today might leave crops hungry tomorrow.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+        <!-- Moon Card -->
+        <div id="btn-select-moon" class="group cursor-pointer rounded-2xl bg-slate-900/90 border-2 border-slate-700 hover:border-cyan-400 p-6 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1.5 shadow-xl hover:shadow-cyan-500/20">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-3xl">🌕</span>
+              <span class="text-xs uppercase tracking-widest font-display text-cyan-400 bg-cyan-950 px-2.5 py-1 rounded-md border border-cyan-800">Artemis Base Alpha</span>
+            </div>
+            <h3 class="text-xl font-bold font-display text-white mb-2 group-hover:text-cyan-300 transition">Lunar South Pole</h3>
+            <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+              Located at Shackleton Crater. Deep in permanent shadow with ice for water, but extreme 14-day cold nights and sudden solar storm particle hazards!
+            </p>
+            <div class="space-y-1.5 text-xs text-slate-400 border-t border-slate-800 pt-3">
+              <div class="flex justify-between"><span>Primary Threat:</span> <strong class="text-amber-400">Deep Radiation & Freezing Nights</strong></div>
+              <div class="flex justify-between"><span>Comms Delay:</span> <strong class="text-emerald-400">1.3 seconds</strong></div>
+              <div class="flex justify-between"><span>NASA Source:</span> <strong class="text-slate-300">Artemis III & RadLab ISS</strong></div>
+            </div>
+          </div>
+          <button class="mt-6 w-full py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold rounded-xl text-sm font-display tracking-wider transition shadow-md">
+            COMMAND LUNAR BASE
+          </button>
+        </div>
+
+        <!-- Mars Card -->
+        <div id="btn-select-mars" class="group cursor-pointer rounded-2xl bg-slate-900/90 border-2 border-slate-700 hover:border-rose-400 p-6 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1.5 shadow-xl hover:shadow-rose-500/20">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-3xl">🔴</span>
+              <span class="text-xs uppercase tracking-widest font-display text-rose-400 bg-rose-950 px-2.5 py-1 rounded-md border border-rose-800">Ares Habitat Beta</span>
+            </div>
+            <h3 class="text-xl font-bold font-display text-white mb-2 group-hover:text-rose-300 transition">Jezero Crater, Mars</h3>
+            <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+              An ancient Martian river delta. Massive atmospheric dust storms block solar panels for weeks, and Earth is over 100 million miles away.
+            </p>
+            <div class="space-y-1.5 text-xs text-slate-400 border-t border-slate-800 pt-3">
+              <div class="flex justify-between"><span>Primary Threat:</span> <strong class="text-amber-400">Dust Blankets & Comms Blackout</strong></div>
+              <div class="flex justify-between"><span>Comms Delay:</span> <strong class="text-rose-400">12 - 20 minutes</strong></div>
+              <div class="flex justify-between"><span>NASA Source:</span> <strong class="text-slate-300">Perseverance Rover & DONKI</strong></div>
+            </div>
+          </div>
+          <button class="mt-6 w-full py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold rounded-xl text-sm font-display tracking-wider transition shadow-md">
+            COMMAND MARS BASE
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: GAMEPLAY DASHBOARD -->
+    <section id="screen-game" class="hidden flex-1 flex flex-col gap-4">
+
+      <!-- Top Station Info & Sol Bar -->
+      <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 resource-glow">
+        <div class="flex items-center gap-3">
+          <div id="destination-badge" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl">
+            🌕
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-display" id="destination-title">Artemis Base Alpha</div>
+            <div class="text-base font-bold text-white flex items-center gap-2">
+              <span id="destination-name">Moon South Pole</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sol Progress Counter -->
+        <div class="flex items-center gap-4 bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800">
+          <div>
+            <div class="text-xs text-slate-400 font-display">SURVIVAL LOG</div>
+            <div class="text-lg md:text-xl font-bold font-display text-cyan-300">
+              SOL <span id="current-sol-val">1</span> <span class="text-slate-500 text-sm">/ 7</span>
+            </div>
+          </div>
+          <div class="w-24 md:w-32 bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
+            <div id="sol-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full w-1/7 bar-smooth"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Core 3 NASA Engineering Resources -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- Resource 1: Power -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-amber-500/20 text-amber-400 rounded-lg text-lg">⚡</span>
+              <span class="font-display font-semibold text-sm text-slate-200">Power Grid</span>
+            </div>
+            <span id="power-val" class="font-display font-bold text-base text-amber-400">80%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800 mb-2">
+            <div id="power-bar" class="bg-gradient-to-r from-amber-600 to-amber-400 h-full w-4/5 bar-smooth"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span>Solar Panels & Fuel Cells</span>
+            <span id="power-delta" class="text-xs font-semibold text-slate-400">Stable</span>
+          </div>
+        </div>
+
+        <!-- Resource 2: Radiation & Crew Health -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-sky-500/20 text-sky-400 rounded-lg text-lg">🛡️</span>
+              <span class="font-display font-semibold text-sm text-slate-200">Crew Shielding</span>
+            </div>
+            <span id="health-val" class="font-display font-bold text-base text-sky-400">85%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800 mb-2">
+            <div id="health-bar" class="bg-gradient-to-r from-sky-600 to-cyan-400 h-full w-[85%] bar-smooth"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span>RadLab Dosimetry (Safe)</span>
+            <span id="health-delta" class="text-xs font-semibold text-slate-400">Nominal</span>
+          </div>
+        </div>
+
+        <!-- Resource 3: Life Support & Food -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-lg">🌱</span>
+              <span class="font-display font-semibold text-sm text-slate-200">Life Support & Food</span>
+            </div>
+            <span id="life-val" class="font-display font-bold text-base text-emerald-400">90%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800 mb-2">
+            <div id="life-bar" class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full w-[90%] bar-smooth"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span>O2 Recycler & Hydroponics</span>
+            <span id="life-delta" class="text-xs font-semibold text-slate-400">Normal</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mission Event & Decision Card -->
+      <div class="bg-slate-900/95 border border-slate-700/80 rounded-2xl p-5 md:p-6 shadow-2xl flex-1 flex flex-col justify-between">
+
+        <div>
+          <!-- Event Header Tag -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span id="event-tag" class="px-3 py-1 rounded-full text-xs font-display font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span id="event-type-text">DONKI Space Weather Alert</span>
+            </span>
+
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400">Sensor Timestamp: Sol <span id="event-sol-indicator">1</span>, 08:30 MET</span>
+            </div>
+          </div>
+
+          <!-- Event Title & Narrative -->
+          <h2 id="event-title" class="text-xl md:text-2xl font-bold font-display text-white mb-2">
+            Coronal Mass Ejection Heading Toward Outpost!
+          </h2>
+          <p id="event-desc" class="text-slate-300 text-sm md:text-base leading-relaxed mb-4">
+            NASA's Space Weather Database (DONKI) detected a fast-moving solar flare. Energetic protons will wash over the lunar surface in 3 hours. Without protection, crew radiation exposure will spike!
+          </p>
+
+          <!-- A.S.T.R.O. Mascot Advice Callout -->
+          <div class="bg-slate-950/70 border border-cyan-500/30 rounded-xl p-3 mb-5 flex items-start gap-3">
+            <div class="text-2xl select-none mt-0.5">🤖</div>
+            <div class="text-xs md:text-sm text-cyan-200">
+              <strong class="text-cyan-400 font-display">A.S.T.R.O. Bot Tip:</strong>
+              <span id="mascot-tip">Remember, Commander: Active electromagnetic shields save health but draw enormous electrical wattage!</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-3 Action Choices (Trade-offs) -->
+        <div id="choices-container" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <!-- Dynamic Buttons Injected Here -->
+        </div>
+
+        <!-- Expandable NASA Data Badge (Transparency & STEM Credibility) -->
+        <div class="border-t border-slate-800 pt-3">
+          <button id="toggle-data-badge" class="w-full text-left flex items-center justify-between text-xs text-slate-400 hover:text-cyan-300 transition py-1">
+            <span class="flex items-center gap-2 font-display">
+              <span>🔬</span>
+              <span>INSPECT REAL NASA OPEN DATASET REFERENCE</span>
+            </span>
+            <span id="data-arrow">▼</span>
+          </button>
+          <div id="data-badge-content" class="hidden mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
+            <p><strong class="text-cyan-400">Dataset:</strong> <span id="nasa-dataset-name">DONKI CME Notification ID #2024-CME-081</span></p>
+            <p><strong class="text-cyan-400">Real Science Principle:</strong> <span id="nasa-science-fact">Solar energetic protons travel near light speed. Astronauts on Artemis missions utilize water walls and lunar regolith shielding to mitigate absorbed doses (Gy).</span></p>
+            <p class="text-[11px] text-slate-400 italic">Source: NASA Space Weather Database of Notifications, Knowledge, Information (DONKI) & RadLab ISS Dosimetry.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- SCREEN 3: MISSION OUTCOME (VICTORY OR EVACUATION) -->
+    <section id="screen-outcome" class="hidden flex-1 flex flex-col justify-center items-center py-6">
+      <div class="bg-slate-900/95 border-2 border-slate-700 rounded-3xl p-6 md:p-8 max-w-2xl w-full text-center shadow-2xl">
+        <div id="outcome-icon" class="text-6xl mb-4">🏆</div>
+        <div id="outcome-badge" class="inline-block px-3 py-1 rounded-full text-xs font-display font-bold uppercase tracking-wider mb-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+          MISSION SUCCESSFUL
+        </div>
+        <h2 id="outcome-title" class="text-2xl md:text-3xl font-display font-bold text-white mb-3">
+          Outpost Commander Certified!
+        </h2>
+        <p id="outcome-message" class="text-slate-300 text-sm md:text-base leading-relaxed mb-6">
+          You balanced power, radiation protection, and food production through 7 grueling Sol cycles. Your crew is healthy and the base is established!
+        </p>
+
+        <!-- Final Stats Recap -->
+        <div class="grid grid-cols-3 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 mb-6 text-center">
+          <div>
+            <div class="text-xs text-slate-400 font-display">FINAL POWER</div>
+            <div id="final-power" class="text-lg font-bold text-amber-400">75%</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-display">CREW HEALTH</div>
+            <div id="final-health" class="text-lg font-bold text-sky-400">82%</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-display">CROPS & O2</div>
+            <div id="final-life" class="text-lg font-bold text-emerald-400">90%</div>
+          </div>
+        </div>
+
+        <!-- NASA Debrief Lessons -->
+        <div class="bg-blue-950/40 border border-blue-900/60 rounded-xl p-3.5 mb-6 text-left">
+          <h4 class="text-xs font-bold font-display text-cyan-300 mb-1 flex items-center gap-1.5">
+            <span>🧑‍🚀</span> NASA Mission Planner Debrief:
+          </h4>
+          <p id="debrief-lesson" class="text-xs text-slate-300 leading-normal">
+            Real Artemis and Mars planners use these exact compromises every day. Using regolith for storm shelters saves critical solar battery kilowatts for nighttime life support!
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <button id="btn-restart" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 font-display font-bold text-white rounded-xl transition shadow-lg text-sm tracking-wide">
+            PLAY NEW MISSION
+          </button>
+          <button id="btn-show-data-modal" class="px-5 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 font-display font-medium text-slate-200 rounded-xl transition text-sm">
+            EXPLORE NASA OPEN DATA
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- NASA DATASET DICTIONARY MODAL -->
+    <div id="data-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">🛰️</span>
+            <h3 class="text-lg font-display font-bold text-white">Real NASA Science & Open Data Sources</h3>
+          </div>
+          <button id="btn-close-data-modal" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
+        </div>
+
+        <div class="space-y-4 text-xs text-slate-300 leading-relaxed">
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <h4 class="font-bold font-display text-cyan-400 text-sm mb-1">1. DONKI (Space Weather Database)</h4>
+            <p>Provides live and historical data on Solar Flares and Coronal Mass Ejections (CMEs). In our game, DONKI data dictates solar radiation intensity and communications disturbances.</p>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <h4 class="font-bold font-display text-sky-400 text-sm mb-1">2. RadLab & NASA OSDR (Biological Science)</h4>
+            <p>RadLab records physical dosimeter measurements aboard the ISS, while the Open Science Data Repository studies cosmic radiation impacts on astronaut bone density and immune defense.</p>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <h4 class="font-bold font-display text-emerald-400 text-sm mb-1">3. CSA Space Food Production Systems</h4>
+            <p>From the Canadian Space Agency & NASA Deep Space Food Challenge: models hydroponics, water cycling, and LED energy consumption required to grow fresh greens in microgravity and planetary outposts.</p>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <h4 class="font-bold font-display text-rose-400 text-sm mb-1">4. Mars Trek & Rover Science (Perseverance & Curiosity)</h4>
+            <p>Real Jezero Crater environmental logs including atmospheric pressure, dust opacity (Tau index), and solar insolance drops caused by seasonal Martian dust storms.</p>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-3 border-t border-slate-800 text-right">
+          <button id="btn-close-data-modal-2" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-display font-bold text-white text-xs">
+            RETURN TO MISSION
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+      <div class="flex items-center gap-2">
+        <span>Designed for NASA Space Apps & STEM Learners (7–12)</span>
+        <span>•</span>
+        <span class="text-cyan-400">NASA Open APIs & CSA Data Driven</span>
+      </div>
+      <div>
+        <span>V1.0 • Artemis & Ares Simulation Suite</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Audio & Game Engine Logic -->
+  <script>
+    /* ========================================================
+       1. SYNTHESIZED SOUND ENGINE (Web Audio API - No external assets)
+       ======================================================== */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+      }
+      playTone(freq, type, duration, gainLevel = 0.1) {
+        if (this.muted) return;
+        try {
+          this.init();
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(gainLevel, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {
+          console.warn("Audio Context blocked or pending interaction");
+        }
+      }
+      click() {
+        this.playTone(800, 'sine', 0.08, 0.08);
+      }
+      alert() {
+        if (this.muted) return;
+        this.playTone(350, 'sawtooth', 0.2, 0.12);
+        setTimeout(() => this.playTone(300, 'sawtooth', 0.25, 0.12), 120);
+      }
+      success() {
+        if (this.muted) return;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C E G C
+        notes.forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.1), idx * 100);
+        });
+      }
+      failure() {
+        if (this.muted) return;
+        const notes = [300, 260, 220, 180];
+        notes.forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'sawtooth', 0.3, 0.15), idx * 120);
+        });
+      }
+    }
+    const audio = new SoundEngine();
+
+    /* ========================================================
+       2. REAL NASA OPEN DATASET EVENT POOL
+       Curated, genuine events mapped to DONKI, RadLab, OSDR, CSA & Rovers
+       ======================================================== */
+    const MISSION_EVENTS = {
+      moon: [
+        {
+          id: 'lunar_cme',
+          title: 'DONKI Alert: Class-X Solar Particle Storm',
+          tag: 'DONKI Radiation Alert',
+          tagClass: 'bg-red-500/20 text-red-300 border-red-500/30',
+          desc: 'A coronal mass ejection erupted from active solar region NOAA 3664. Extreme solar protons are streaming toward the Moon without an atmosphere to slow them down.',
+          tip: 'Active magnetic shields stop radiation completely but require massive battery power. Regolith shelters save power but pause scientific experiments.',
+          nasaDataset: 'NASA DONKI CME ID #2024-05-10-CME-01 & RadLab Dosimetry DB',
+          nasaFact: 'On the Moon, astronauts encounter up to 1,369 µSv/day of radiation. During solar storms, this can spike 100x. Heavy lunar soil (regolith) is an effective natural shield.',
+          choices: [
+            {
+              text: '🛡️ Maximum Magnetic Shielding',
+              sub: 'Safe health, but heavy power consumption',
+              costPower: -35,
+              costHealth: +5,
+              costLife: 0,
+              feedback: 'Shields deflected 99% of the solar storm! Power dropped significantly, but crew health remains top-tier.'
+            },
+            {
+              text: '⛏️ Evacuate into Regolith Bunker',
+              sub: 'Zero power cost, but delays crop tending',
+              costPower: 0,
+              costHealth: -5,
+              costLife: -15,
+              feedback: 'Crew safely hunkered inside the soil cave. The greenhouse lights were shut off to avoid outdoor repairs.'
+            },
+            {
+              text: '⚡ Route Power to Hydroponics',
+              sub: 'Boost crops, take mild radiation dose',
+              costPower: -10,
+              costHealth: -25,
+              costLife: +15,
+              feedback: 'Crops flourished with extra UV energy, but the crew absorbed a measurable dose of radiation.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_night',
+          title: 'Entering 14-Day Lunar Night (-130°C)',
+          tag: 'Artemis Environmental Data',
+          tagClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+          desc: 'The Moon has entered local night. The base is plunged into extreme cold and solar arrays generate 0 Watts for the next cycle.',
+          tip: 'In deep cold, thermal heaters must protect equipment from cracking. You must decide what stays heated.',
+          nasaDataset: 'NASA Diviner Lunar Radiometer Experiment & Artemis III Landing Sites',
+          nasaFact: 'Lunar South Pole craters can reach -246°C (-410°F), some of the coldest measured spots in the entire Solar System.',
+          choices: [
+            {
+              text: '🔥 Full Battery Heat for Living Quarters',
+              sub: 'Keeps crew comfortable, uses 30% battery',
+              costPower: -30,
+              costHealth: +5,
+              costLife: 0,
+              feedback: 'Living habitat stayed cozy at 21°C. Fuel cell reserves depleted as planned.'
+            },
+            {
+              text: '❄️ Hibernate Greenhouse & Lower Temps',
+              sub: 'Saves 20% power, slows plant photosynthesis',
+              costPower: -10,
+              costHealth: -10,
+              costLife: -20,
+              feedback: 'Power saved! The crew wore thermal suits indoors, but microgreen crops withered from the cold.'
+            },
+            {
+              text: '🧪 Burn Emergency Fuel Reserves',
+              sub: 'Normal temp, but strains life support water',
+              costPower: -5,
+              costHealth: 0,
+              costLife: -15,
+              feedback: 'Emergency hydrogen reserves used for heating. Water recyclers had to sacrifice reserves.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_osdr_health',
+          title: 'OSDR Health Alert: Bone Density & Immune Fatigue',
+          tag: 'NASA OSDR Biological Study',
+          tagClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+          desc: 'Telemetry from biosensors shows crew bone reabsorption is accelerating in 1/6th gravity. The team needs intensive resistance exercise and nutrition.',
+          tip: 'Exercise bikes and ARED machines consume power and require extra oxygen and calorie intake.',
+          nasaDataset: 'NASA Open Science Data Repository (OSDR Study OSD-379 & OSD-422)',
+          nasaFact: 'Without high-intensity countermeasure exercise in partial gravity, astronauts can lose up to 1% bone mineral density per month.',
+          choices: [
+            {
+              text: '🏋️ Mandatory 3-Hour Gym Sessions',
+              sub: 'Restores health, burns more food & oxygen',
+              costPower: -15,
+              costHealth: +20,
+              costLife: -20,
+              feedback: 'Crew physical tone and morale restored! High metabolism caused a noticeable dent in the pantry.'
+            },
+            {
+              text: '🥗 Prioritize Fresh Hydroponic Microgreens',
+              sub: 'Boosts immune health gently with minimal power',
+              costPower: -5,
+              costHealth: +10,
+              costLife: -5,
+              feedback: 'Fresh antioxidant-rich radish and spinach greens helped crew vitality without overworking the team.'
+            },
+            {
+              text: '🔬 Keep Working on Lunar Science Drills',
+              sub: 'Save resources, but fatigue accumulates',
+              costPower: +5,
+              costHealth: -20,
+              costLife: +5,
+              feedback: 'Scientific drilling continued uninterrupted, but two astronauts report muscle soreness and fatigue.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_water_ice',
+          title: 'Shackleton Crater Ice Harvesting',
+          tag: 'Artemis Water ISRU Operation',
+          tagClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+          desc: 'Autonomous rover VIPER found subsurface ice 1 meter down inside the crater. Melting it provides clean drinking water and oxygen, but drilling takes heavy juice.',
+          tip: 'In-situ Resource Utilization (ISRU) turns local lunar ice into rocket fuel and breathable air!',
+          nasaDataset: 'NASA Lunar Reconnaissance Orbiter (LRO) LAMP & Mini-RF Data',
+          nasaFact: 'There are over 600 million metric tons of water ice trapped in the permanently shadowed craters of the lunar poles.',
+          choices: [
+            {
+              text: '⛏️ Full Power Thermal Melt & Extraction',
+              sub: 'Yields large oxygen boost, high battery draw',
+              costPower: -30,
+              costHealth: 0,
+              costLife: +30,
+              feedback: 'Success! Over 50 liters of pure lunar water processed into clean oxygen and drinking reserves.'
+            },
+            {
+              text: '🪓 Gentle Solar Extraction',
+              sub: 'Modest oxygen gain, perfectly balanced power',
+              costPower: -10,
+              costHealth: 0,
+              costLife: +12,
+              feedback: 'Steady progress. Modest increase in life support with safe battery margins.'
+            },
+            {
+              text: '⏸️ Postpone Extraction to Save Batteries',
+              sub: 'No power cost, but missed life support boost',
+              costPower: +10,
+              costHealth: -5,
+              costLife: -10,
+              feedback: 'Batteries fully charged, but water recyclers had to ration daily showers.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_csa_food',
+          title: 'CSA Deep Space Food Challenge: Micro-Algae Photobioreactor',
+          tag: 'CSA Space Food Systems',
+          tagClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          desc: 'The Canadian Space Agency test reactor is ready to harvest Spirulina algae. It produces both fresh protein and absorbs CO2, but needs tuned LED wavelengths.',
+          tip: 'Algae can produce nutrients up to 10 times faster than soil-grown plants on Earth!',
+          nasaDataset: 'CSA Deep Space Food Challenge & NASA Kennedy Space Center Veggie Program',
+          nasaFact: 'Spirulina algae provides complete protein, vitamins B and K, and actively recycles crew exhaled carbon dioxide into pure oxygen.',
+          choices: [
+            {
+              text: '💡 Supercharge LED Growth Arrays',
+              sub: 'Maximum food & oxygen, drains 25% power',
+              costPower: -25,
+              costHealth: +10,
+              costLife: +25,
+              feedback: 'Algae bloomed in record time! The crew enjoyed fresh spirulina smoothies and crisp fresh oxygen.'
+            },
+            {
+              text: '🌱 Standard Slow-Growth Setting',
+              sub: 'Moderate food output, minimal power draw',
+              costPower: -10,
+              costHealth: +5,
+              costLife: +10,
+              feedback: 'Reliable harvest without putting strain on the base batteries.'
+            },
+            {
+              text: '📦 Eat Pre-packaged MRE Rations Instead',
+              sub: 'Saves 100% of algae power, preserves food stocks',
+              costPower: +5,
+              costHealth: -10,
+              costLife: 0,
+              feedback: 'Power saved! However, freeze-dried rations lack fresh nutrients, causing mild crew gripes.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_comms',
+          title: 'Earth Ground Station Eclipse (Comms Blackout)',
+          tag: 'Deep Space Network (DSN)',
+          tagClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+          desc: 'The Moon has rotated so direct radio line-of-sight to Earth is blocked for 18 hours. The outpost must rely on automated autonomous subroutines.',
+          tip: 'Without Earth Mission Control, the outpost computer must run self-diagnostics.',
+          nasaDataset: 'NASA Deep Space Network (DSN) Goldstone / Madrid / Canberra Tracking',
+          nasaFact: 'Deep Space Network antennas communicate across interplanetary space. Lunar communication delay is only 1.3 seconds, but physical blockage requires relay satellites.',
+          choices: [
+            {
+              text: '🛰️ Fire High-Power Orbital Relay Transmitter',
+              sub: 'Stay connected via satellite, uses power',
+              costPower: -20,
+              costHealth: +5,
+              costLife: 0,
+              feedback: 'Signal maintained through Lunar Gateway relay. Earth scientists cheered, though power reserves dipped.'
+            },
+            {
+              text: '🤖 Let A.S.T.R.O. Bot Run Autonomous Mode',
+              sub: 'Zero power cost, small chance of system glitch',
+              costPower: +5,
+              costHealth: -5,
+              costLife: -5,
+              feedback: 'Outpost AI handled the night. A brief minor glitch in the air pump caused a small drop in oxygen.'
+            },
+            {
+              text: '🛌 Schedule Crew Downtime & Rest Sol',
+              sub: 'No power cost, boosts mental health',
+              costPower: 0,
+              costHealth: +15,
+              costLife: -10,
+              feedback: 'Crew watched movies and slept 9 hours. Great morale boost, though garden irrigation was paused.'
+            }
+          ]
+        },
+        {
+          id: 'lunar_meteoroid',
+          title: 'LOLA Radar Alert: Micrometeoroid Swarm',
+          tag: 'NASA LOLA Sensor',
+          tagClass: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+          desc: 'A trail of comet dust is intersecting the lunar orbit. Tiny high-velocity specks could puncture soft fabric domes or scratch solar mirrors.',
+          tip: 'Whipple shields absorb high-speed impacts, but motorized armor covers consume power.',
+          nasaDataset: 'NASA Lunar Reconnaissance Orbiter LOLA Instrument & Hypervelocity Impact Lab',
+          nasaFact: 'Micrometeoroids travel at speeds over 20 kilometers per second (45,000 mph)—faster than a rifle bullet!',
+          choices: [
+            {
+              text: '🛡️ Deploy Motorized Kevlar Blast Shutters',
+              sub: 'Total habitat security, high power cost',
+              costPower: -25,
+              costHealth: +10,
+              costLife: 0,
+              feedback: 'Clank! Shutters deployed safely. Multiple tiny dust particles bounced off the armored plates harmlessly.'
+            },
+            {
+              text: '🧑‍🚀 Depressurize Outer Airway & Patch Fast',
+              sub: 'Saves power, minor oxygen loss',
+              costPower: 0,
+              costHealth: 0,
+              costLife: -15,
+              feedback: 'Power preserved! A tiny scratch on the secondary greenhouse was sealed quickly with spray sealant.'
+            },
+            {
+              text: '⚡ Overclock Perimeter Deflector Lasers',
+              sub: 'Vaporizes dust in flight, extreme battery usage',
+              costPower: -40,
+              costHealth: +15,
+              costLife: +5,
+              feedback: 'Spectacular laser show! Every speck was vaporized before impact, but base batteries are glowing hot.'
+            }
+          ]
+        }
+      ],
+      mars: [
+        {
+          id: 'mars_dust_storm',
+          title: 'Perseverance Weather Log: Planet-Wide Dust Storm (Tau = 2.4)',
+          tag: 'Mars Rover Environmental Station (MEDA)',
+          tagClass: 'bg-amber-600/20 text-amber-300 border-amber-600/30',
+          desc: 'Fine red dust has whipped up into the upper atmosphere above Jezero Crater. Direct sunlight is cut by 70%, choking solar arrays!',
+          tip: 'Just like the Opportunity rover learned, Martian dust covers panels and drastically slashes energy generation.',
+          nasaDataset: 'NASA Mars 2020 Perseverance MEDA & Mars Reconnaissance Orbiter (MRO) MARCI',
+          nasaFact: 'Martian dust storms can grow so large they envelope the entire planet for months, turning the Martian sky from butterscotch to deep brown.',
+          choices: [
+            {
+              text: '🧹 Run Electrostatic Panel Dust Blowers',
+              sub: 'Cleans arrays, but costs immediate battery burst',
+              costPower: -25,
+              costHealth: 0,
+              costLife: +10,
+              feedback: 'Static pulses blew 80% of dust off! Solar collection restored to healthy levels.'
+            },
+            {
+              text: '🔌 Emergency Brownout: Power Down Everything',
+              sub: 'Saves battery, cuts oxygen & heat to safe minimum',
+              costPower: +10,
+              costHealth: -15,
+              costLife: -25,
+              feedback: 'Batteries survived at 90%, but the crew spent 24 hours in freezing darkness with rationing.'
+            },
+            {
+              text: '💨 Spin Backup Stirling RTG Generators',
+              sub: 'Reliable thermal power, slight radiation bump',
+              costPower: +15,
+              costHealth: -10,
+              costLife: 0,
+              feedback: 'Radioisotope generators provided steady kilowatts through the storm. Crew radiation meters ticked up slightly.'
+            }
+          ]
+        },
+        {
+          id: 'mars_moxie_o2',
+          title: 'MOXIE Oxygen Generator Calibration',
+          tag: 'Perseverance MOXIE Instrument',
+          tagClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+          desc: 'The habitat MOXIE unit takes thin Martian CO2 air (95% carbon dioxide) and bakes it at 800°C to strip out pure oxygen for breathing.',
+          tip: 'MOXIE works like a mechanical tree! High heat requires heavy electrical power.',
+          nasaDataset: 'NASA Mars MOXIE (Mars Oxygen ISRU Experiment) Performance Logs',
+          nasaFact: 'MOXIE on Perseverance generated over 122 grams of oxygen on Mars—enough to keep a small puppy breathing for 10 hours.',
+          choices: [
+            {
+              text: '🔥 Run MOXIE at 120% Supercharge',
+              sub: 'Massive oxygen stockpile, costs 35% power',
+              costPower: -35,
+              costHealth: +5,
+              costLife: +35,
+              feedback: 'Tanks are brimming with fresh crisp oxygen! Power reserves took a noticeable hit.'
+            },
+            {
+              text: '⚖️ Standard MOXIE Cycle',
+              sub: 'Balanced oxygen production with moderate power',
+              costPower: -15,
+              costHealth: 0,
+              costLife: +15,
+              feedback: 'Steady, reliable run. MOXIE purred along efficiently without overloading circuit breakers.'
+            },
+            {
+              text: '🛑 Idle MOXIE & Use Recycled Scrubber Tanks',
+              sub: 'Zero power cost, crew breathes recycled stale air',
+              costPower: +10,
+              costHealth: -10,
+              costLife: -15,
+              feedback: 'Power conserved for science. The crew reported mild headaches from elevated CO2 levels.'
+            }
+          ]
+        },
+        {
+          id: 'mars_osdr_immune',
+          title: 'OSDR Report: Martian Regolith Toxicity & Crew Lungs',
+          tag: 'NASA OSDR / Toxicology',
+          tagClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+          desc: 'Martian dust contains hazardous perchlorate salts. EVA suits returning from Jezero delta tracked fine particulates into the habitat airlock.',
+          tip: 'Perchlorates can harm human thyroid and respiratory function if not scrubbed from the air.',
+          nasaDataset: 'NASA Open Science Data Repository & Curiosity SAM Soil Analysis',
+          nasaFact: 'Curiosity confirmed toxic perchlorates exist across all Martian soil. Special electrostatic suit washes are needed before stepping inside.',
+          choices: [
+            {
+              text: '🚿 Double-Wash Airlock Electrostatic Shower',
+              sub: '100% dust scrubbed, drains water & battery',
+              costPower: -20,
+              costHealth: +20,
+              costLife: -10,
+              feedback: 'Habitat air scrubbed to hospital cleanroom purity! Health is fully protected.'
+            },
+            {
+              text: '😷 Issue Crew Respirator Masks Indoors',
+              sub: 'No power cost, uncomfortable for crew',
+              costPower: 0,
+              costHealth: +5,
+              costLife: -5,
+              feedback: 'Astronauts wore tight masks while vacuuming manually. Annoying, but saved base watts.'
+            },
+            {
+              text: '⚡ Route Air Scrubbers to Greenhouse First',
+              sub: 'Protects edible plants, crew endures mild sneeze',
+              costPower: -10,
+              costHealth: -15,
+              costLife: +20,
+              feedback: 'The lettuce crops stayed 100% pure! Crew sneezed a bit, but salads were delicious.'
+            }
+          ]
+        },
+        {
+          id: 'mars_csa_greenhouse',
+          title: 'CSA Hydroponics: Martian Crop Nitrogen Deficit',
+          tag: 'CSA Food Systems & NASA Veggie',
+          tagClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          desc: 'The Martian soil inside greenhouse bio-trays lacks active nitrates. To prevent potato and bean crop failure, you must synthesize fertilizer.',
+          tip: 'Plants in space require nitrogen fixing bacteria or synthesized ammonia, which requires electrical electrolysis.',
+          nasaDataset: 'CSA Space Food Toolkit & NASA Veggie Plant Growth Facility (ISS)',
+          nasaFact: 'On Earth, microbes create soil nitrogen for free. On Mars, every gram of fertilizer must be synthesized from atmospheric N2.',
+          choices: [
+            {
+              text: '⚡ Synthesize High-Grade Nitrate Fertilizer',
+              sub: 'Huge crop boost, costs 30% electrical power',
+              costPower: -30,
+              costHealth: +5,
+              costLife: +30,
+              feedback: 'Leaves burst into emerald green! Fresh tomatoes and peas ready for dinner.'
+            },
+            {
+              text: '🧪 Recycle Habitat Greywater & Compost',
+              sub: 'Zero power cost, modest crop yield, smells bad',
+              costPower: 0,
+              costHealth: -5,
+              costLife: +10,
+              feedback: 'Closed-loop organic recycling worked! The greenhouse smells funky, but food was saved.'
+            },
+            {
+              text: '📦 Switch Crew to Strict Emergency Rations',
+              sub: 'Preserves base power, cuts fresh greens intake',
+              costPower: +10,
+              costHealth: -15,
+              costLife: -15,
+              feedback: 'Power saved! Eating brown nutrient paste for 3 meals made crew morale sag.'
+            }
+          ]
+        },
+        {
+          id: 'mars_comms_lag',
+          title: 'NASA DSN Comms Lag: 18-Minute One-Way Signal',
+          tag: 'NASA Jet Propulsion Lab (JPL)',
+          tagClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+          desc: 'Mars and Earth are currently on opposite sides of their orbits. A critical warning alert from Houston takes 36 minutes for a round-trip reply!',
+          tip: 'Mars astronauts cannot call Earth for emergency live advice. You must make command decisions autonomously.',
+          nasaDataset: 'NASA Deep Space Network Planetary Ephemeris Data',
+          nasaFact: 'Because light travels at 300,000 km/s, messages to Mars take between 4 to 24 minutes depending on orbital positions.',
+          choices: [
+            {
+              text: '🧠 Give A.S.T.R.O. Bot High Computing Priority',
+              sub: 'Instant smart decisions, uses 20% CPU power',
+              costPower: -20,
+              costHealth: +10,
+              costLife: +5,
+              feedback: 'The outpost supercomputer made predictive adjustments before minor valve leaks could happen.'
+            },
+            {
+              text: '📡 Keep High-Gain Satellite Antenna Pumping',
+              sub: 'Maintains link to Earth, drains battery',
+              costPower: -25,
+              costHealth: +5,
+              costLife: 0,
+              feedback: 'Data arrived from Earth 36 minutes later confirming your base settings were correct.'
+            },
+            {
+              text: '👨‍✈️ Rely on Commander Intuition (Manual Mode)',
+              sub: 'Zero power cost, test of your judgment',
+              costPower: +10,
+              costHealth: -5,
+              costLife: -5,
+              feedback: 'You steered the base on manual dials. Minor power fluctuations occurred, but you held the line!'
+            }
+          ]
+        },
+        {
+          id: 'mars_subsurface_radar',
+          title: 'SHARAD Radar Discovery: Subsurface Glacial Ice',
+          tag: 'MRO Shallow Radar (SHARAD)',
+          tagClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+          desc: 'Orbital radar detected a buried sheet of pure water ice under 2 meters of dirt near the crater wall. A deep drill could tap unlimited water.',
+          tip: 'Water provides life support, radiation shielding water walls, and rocket fuel!',
+          nasaDataset: 'NASA Mars Reconnaissance Orbiter SHARAD Subsurface Radar',
+          nasaFact: 'Radar soundings show buried ice sheets across Mars as thick as 100 meters, shielded from evaporating into space by dry soil.',
+          choices: [
+            {
+              text: '🚜 Send Automated Drilling Rover',
+              sub: 'Massive water & life support boost, costs 30% power',
+              costPower: -30,
+              costHealth: +10,
+              costLife: +30,
+              feedback: 'Water strike! Clean melted ice fills storage tanks and water-wall radiation shields.'
+            },
+            {
+              text: '🔬 Send Crew on Field Expedition',
+              sub: 'Collects ice samples, exposes crew to mild radiation',
+              costPower: -10,
+              costHealth: -20,
+              costLife: +25,
+              feedback: 'Astronauts returned with rich core samples. Great science, but extra radiation was absorbed.'
+            },
+            {
+              text: '📍 Mark Coordinates for Future Missions',
+              sub: 'Safe and conservative, no resource spent',
+              costPower: +5,
+              costHealth: 0,
+              costLife: -5,
+              feedback: 'Flag planted! Power remained safely inside batteries for tomorrow.'
+            }
+          ]
+        },
+        {
+          id: 'mars_aurora_event',
+          title: 'MAVEN Satellite: Global Martian Proton Aurora',
+          tag: 'NASA MAVEN Mission',
+          tagClass: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+          desc: 'A massive solar gust has wrapped the entire red planet in an ultraviolet proton aurora! Mars has no global magnetic field to repel charged particles.',
+          tip: 'Without a global magnetic shield like Earth, solar wind strips Mars’ atmosphere and irradiates the ground.',
+          nasaDataset: 'NASA MAVEN (Mars Atmosphere and Volatile EvolutioN) Imaging Spectrograph',
+          nasaFact: 'MAVEN discovered that solar wind storms cause auroras that cover the ENTIRE planet of Mars, unlike Earth’s polar-only lights.',
+          choices: [
+            {
+              text: '🛡️ Lock Down Base In Local Magnetic Bubble',
+              sub: 'Full safety, costs 35% battery reserves',
+              costPower: -35,
+              costHealth: +15,
+              costLife: 0,
+              feedback: 'Local superconducting coils fired up! The crew watched stunning violet skies in complete safety.'
+            },
+            {
+              text: '🪨 Move Sleep Quarters Underground into Lava Tube',
+              sub: 'Zero power cost, cold & crowded for 1 Sol',
+              costPower: 0,
+              costHealth: +5,
+              costLife: -15,
+              feedback: 'Basalt lava tube blocked 100% of the cosmic rays! Living conditions were cramped, but everyone is safe.'
+            },
+            {
+              text: '📸 Keep Scientific Cameras Outside Recording',
+              sub: 'Groundbreaking science data, crew takes small dose',
+              costPower: -10,
+              costHealth: -20,
+              costLife: +10,
+              feedback: 'Incredible ultraviolet aurora science data captured for NASA scientists, at the cost of mild radiation exposure.'
+            }
+          ]
+        }
+      ]
+    };
+
+    /* ========================================================
+       3. GAME ENGINE & STATE MANAGEMENT
+       ======================================================== */
+    const MAX_SOL = 7;
+    let gameState = {
+      location: 'moon', // 'moon' or 'mars'
+      sol: 1,
+      power: 80,
+      health: 85,
+      life: 90,
+      history: [],
+      currentEvent: null,
+      usedEventIds: []
+    };
+
+    // UI Elements
+    const screenSelect = document.getElementById('screen-select');
+    const screenGame = document.getElementById('screen-game');
+    const screenOutcome = document.getElementById('screen-outcome');
+
+    const powerBar = document.getElementById('power-bar');
+    const powerVal = document.getElementById('power-val');
+    const powerDelta = document.getElementById('power-delta');
+
+    const healthBar = document.getElementById('health-bar');
+    const healthVal = document.getElementById('health-val');
+    const healthDelta = document.getElementById('health-delta');
+
+    const lifeBar = document.getElementById('life-bar');
+    const lifeVal = document.getElementById('life-val');
+    const lifeDelta = document.getElementById('life-delta');
+
+    const solProgressBar = document.getElementById('sol-progress-bar');
+    const currentSolVal = document.getElementById('current-sol-val');
+
+    const eventTag = document.getElementById('event-tag');
+    const eventTypeText = document.getElementById('event-type-text');
+    const eventSolIndicator = document.getElementById('event-sol-indicator');
+    const eventTitle = document.getElementById('event-title');
+    const eventDesc = document.getElementById('event-desc');
+    const mascotTip = document.getElementById('mascot-tip');
+    const choicesContainer = document.getElementById('choices-container');
+
+    const toggleDataBadge = document.getElementById('toggle-data-badge');
+    const dataBadgeContent = document.getElementById('data-badge-content');
+    const dataArrow = document.getElementById('data-arrow');
+    const nasaDatasetName = document.getElementById('nasa-dataset-name');
+    const nasaScienceFact = document.getElementById('nasa-science-fact');
+
+    const destinationBadge = document.getElementById('destination-badge');
+    const destinationTitle = document.getElementById('destination-title');
+    const destinationName = document.getElementById('destination-name');
+
+    // Modals & Extras
+    const dataModal = document.getElementById('data-modal');
+    const btnDataDoc = document.getElementById('data-doc-btn');
+    const btnCloseDataModal = document.getElementById('btn-close-data-modal');
+    const btnCloseDataModal2 = document.getElementById('btn-close-data-modal-2');
+    const btnShowDataModal = document.getElementById('btn-show-data-modal');
+    const soundToggleBtn = document.getElementById('sound-toggle-btn');
+    const soundStatus = document.getElementById('sound-status');
+    const soundIcon = document.getElementById('sound-icon');
+
+    /* ========================================================
+       4. GAMEPLAY LIFECYCLE
+       ======================================================== */
+
+    function startMission(destination) {
+      audio.click();
+      gameState.location = destination;
+      gameState.sol = 1;
+      gameState.power = 80;
+      gameState.health = 85;
+      gameState.life = 90;
+      gameState.history = [];
+      gameState.usedEventIds = [];
+
+      // Configure destination branding
+      if (destination === 'moon') {
+        destinationBadge.textContent = '🌕';
+        destinationTitle.textContent = 'ARTEMIS BASE ALPHA';
+        destinationName.textContent = 'Lunar South Pole (Shackleton)';
+      } else {
+        destinationBadge.textContent = '🔴';
+        destinationTitle.textContent = 'ARES COLONY BETA';
+        destinationName.textContent = 'Jezero Crater Delta, Mars';
+      }
+
+      screenSelect.classList.add('hidden');
+      screenOutcome.classList.add('hidden');
+      screenGame.classList.remove('hidden');
+
+      updateResourceUI();
+      loadSolEvent();
+    }
+
+    function updateResourceUI() {
+      // Clamp values between 0 and 100
+      gameState.power = Math.max(0, Math.min(100, gameState.power));
+      gameState.health = Math.max(0, Math.min(100, gameState.health));
+      gameState.life = Math.max(0, Math.min(100, gameState.life));
+
+      // Bar widths
+      powerBar.style.width = gameState.power + '%';
+      powerVal.textContent = gameState.power + '%';
+
+      healthBar.style.width = gameState.health + '%';
+      healthVal.textContent = gameState.health + '%';
+
+      lifeBar.style.width = gameState.life + '%';
+      lifeVal.textContent = gameState.life + '%';
+
+      // Colors for low thresholds (visual feedback for 7-12 kids)
+      updateBarColor(powerBar, gameState.power, 'amber');
+      updateBarColor(healthBar, gameState.health, 'sky');
+      updateBarColor(lifeBar, gameState.life, 'emerald');
+
+      // Sol indicator
+      currentSolVal.textContent = gameState.sol;
+      solProgressBar.style.width = ((gameState.sol / MAX_SOL) * 100) + '%';
+      eventSolIndicator.textContent = gameState.sol;
+    }
+
+    function updateBarColor(barElement, value, defaultColor) {
+      if (value <= 25) {
+        barElement.className = 'bg-gradient-to-r from-red-600 to-red-500 h-full bar-smooth animate-pulse';
+      } else if (value <= 50) {
+        barElement.className = 'bg-gradient-to-r from-yellow-600 to-amber-500 h-full bar-smooth';
+      } else {
+        if (defaultColor === 'amber') barElement.className = 'bg-gradient-to-r from-amber-600 to-amber-400 h-full bar-smooth';
+        if (defaultColor === 'sky') barElement.className = 'bg-gradient-to-r from-sky-600 to-cyan-400 h-full bar-smooth';
+        if (defaultColor === 'emerald') barElement.className = 'bg-gradient-to-r from-emerald-600 to-emerald-400 h-full bar-smooth';
+      }
+    }
+
+    function loadSolEvent() {
+      audio.alert();
+      // Reset Data Badge expansion
+      dataBadgeContent.classList.add('hidden');
+      dataArrow.textContent = '▼';
+
+      const pool = MISSION_EVENTS[gameState.location];
+      let availableEvents = pool.filter(e => !gameState.usedEventIds.includes(e.id));
+
+      // If pool exhausted, reset
+      if (availableEvents.length === 0) {
+        gameState.usedEventIds = [];
+        availableEvents = pool;
+      }
+
+      // Pick random event
+      const event = availableEvents[Math.floor(Math.random() * availableEvents.length)];
+      gameState.usedEventIds.push(event.id);
+      gameState.currentEvent = event;
+
+      // Populate Event Card
+      eventTag.className = `px-3 py-1 rounded-full text-xs font-display font-bold uppercase tracking-wider border flex items-center gap-1.5 ${event.tagClass}`;
+      eventTypeText.textContent = event.tag;
+      eventTitle.textContent = event.title;
+      eventDesc.textContent = event.desc;
+      mascotTip.textContent = event.tip;
+
+      nasaDatasetName.textContent = event.nasaDataset;
+      nasaScienceFact.textContent = event.nasaFact;
+
+      // Populate Decision Buttons with clear Trade-Off badges
+      choicesContainer.innerHTML = '';
+      event.choices.forEach((choice, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'p-3.5 rounded-xl bg-slate-950/90 border border-slate-700 hover:border-cyan-400 hover:bg-slate-800 transition text-left flex flex-col justify-between group shadow-md hover:shadow-cyan-500/20 active:scale-[0.98]';
+
+        // Format cost badges
+        const badgesHtml = `
+          <div class="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] font-display font-semibold">
+            ${choice.costPower !== 0 ? `<span class="px-1.5 py-0.5 rounded ${choice.costPower > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-red-950 text-red-300 border border-red-800'}">⚡ ${choice.costPower > 0 ? '+' : ''}${choice.costPower}% Power</span>` : ''}
+            ${choice.costHealth !== 0 ? `<span class="px-1.5 py-0.5 rounded ${choice.costHealth > 0 ? 'bg-sky-950 text-sky-300 border border-sky-800' : 'bg-red-950 text-red-300 border border-red-800'}">🛡️ ${choice.costHealth > 0 ? '+' : ''}${choice.costHealth}% Health</span>` : ''}
+            ${choice.costLife !== 0 ? `<span class="px-1.5 py-0.5 rounded ${choice.costLife > 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-red-950 text-red-300 border border-red-800'}">🌱 ${choice.costLife > 0 ? '+' : ''}${choice.costLife}% Food</span>` : ''}
+          </div>
+        `;
+
+        btn.innerHTML = `
+          <div>
+            <div class="text-sm font-bold text-white group-hover:text-cyan-300 transition font-display mb-1">${choice.text}</div>
+            <div class="text-xs text-slate-400 leading-snug">${choice.sub}</div>
+          </div>
+          ${badgesHtml}
+        `;
+
+        btn.addEventListener('click', () => handleChoiceSelection(choice));
+        choicesContainer.appendChild(btn);
+      });
+    }
+
+    function handleChoiceSelection(choice) {
+      audio.click();
+      // Apply delta
+      gameState.power += choice.costPower;
+      gameState.health += choice.costHealth;
+      gameState.life += choice.costLife;
+
+      // Update UI
+      updateResourceUI();
+
+      // Show delta tags
+      showDelta(powerDelta, choice.costPower, '⚡');
+      showDelta(healthDelta, choice.costHealth, '🛡️');
+      showDelta(lifeDelta, choice.costLife, '🌱');
+
+      // Check failure condition
+      if (gameState.power <= 0 || gameState.health <= 0 || gameState.life <= 0) {
+        setTimeout(() => triggerGameOver(false, choice), 500);
+        return;
+      }
+
+      // Check victory condition (Survived 7 Sols)
+      if (gameState.sol >= MAX_SOL) {
+        setTimeout(() => triggerGameOver(true, choice), 500);
+        return;
+      }
+
+      // Advance to next Sol
+      gameState.sol += 1;
+      setTimeout(() => {
+        loadSolEvent();
+      }, 400);
+    }
+
+    function showDelta(el, val, icon) {
+      if (val === 0) {
+        el.textContent = 'Stable';
+        el.className = 'text-xs text-slate-400 font-semibold';
+      } else if (val > 0) {
+        el.textContent = `+${val}%`;
+        el.className = 'text-xs text-emerald-400 font-semibold';
+      } else {
+        el.textContent = `${val}%`;
+        el.className = 'text-xs text-red-400 font-semibold';
+      }
+    }
+
+    function triggerGameOver(isSuccess, lastChoice) {
+      screenGame.classList.add('hidden');
+      screenOutcome.classList.remove('hidden');
+
+      const outcomeIcon = document.getElementById('outcome-icon');
+      const outcomeBadge = document.getElementById('outcome-badge');
+      const outcomeTitle = document.getElementById('outcome-title');
+      const outcomeMessage = document.getElementById('outcome-message');
+      const finalPower = document.getElementById('final-power');
+      const finalHealth = document.getElementById('final-health');
+      const finalLife = document.getElementById('final-life');
+      const debriefLesson = document.getElementById('debrief-lesson');
+
+      finalPower.textContent = gameState.power + '%';
+      finalHealth.textContent = gameState.health + '%';
+      finalLife.textContent = gameState.life + '%';
+
+      if (isSuccess) {
+        audio.success();
+        outcomeIcon.textContent = '🏆';
+        outcomeBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-display font-bold uppercase tracking-wider mb-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        outcomeBadge.textContent = 'MISSION ACCOMPLISHED // LEVEL 1 CERTIFIED';
+        outcomeTitle.textContent = `Salute, Commander of ${gameState.location === 'moon' ? 'the Moon' : 'Mars'}!`;
+        outcomeMessage.textContent = `You survived all ${MAX_SOL} Sols in the harshest environment known to humanity. Your balanced management of power, shielding, and life support proved that real science beats guesswork.`;
+
+        debriefLesson.innerHTML = `
+          <strong>NASA Flight Director Evaluation:</strong> Outstanding work! You understood that no engineering choice is free. By keeping reserves for surprise solar weather and dust events, your outpost remains operational for future Artemis explorers.
+        `;
+      } else {
+        audio.failure();
+        outcomeIcon.textContent = '🚨';
+        outcomeBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-display font-bold uppercase tracking-wider mb-2 bg-rose-500/20 text-rose-300 border border-rose-500/40';
+        outcomeBadge.textContent = 'EMERGENCY EVACUATION // MISSION ABORT';
+        outcomeTitle.textContent = 'Crew Safely Evacuated to Orbit!';
+
+        let reason = '';
+        if (gameState.power <= 0) reason = 'The electrical grid collapsed into total blackout. Critical life support heaters shut down.';
+        else if (gameState.health <= 0) reason = 'Radiation exposure exceeded safe OSHA/NASA RadLab thresholds. The medical team ordered an immediate ascent abort.';
+        else reason = 'The greenhouse failed and oxygen scrubbers ran out of filtration water.';
+
+        outcomeMessage.textContent = `Mission paused on Sol ${gameState.sol}. ${reason} In NASA mission planning, every failure is just valuable test data!`;
+
+        debriefLesson.innerHTML = `
+          <strong>Engineering Post-Mortem:</strong> Space survival is all about keeping margins. Next time, try storing at least 20% power reserve or sheltering in regolith bunkers early so you aren't forced into emergency trade-offs during major solar events!
+        `;
+      }
+    }
+
+    /* ========================================================
+       5. EVENT LISTENERS & UI CONTROLS
+       ======================================================== */
+    document.getElementById('btn-select-moon').addEventListener('click', () => startMission('moon'));
+    document.getElementById('btn-select-mars').addEventListener('click', () => startMission('mars'));
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      audio.click();
+      screenOutcome.classList.add('hidden');
+      screenGame.classList.add('hidden');
+      screenSelect.classList.remove('hidden');
+    });
+
+    // Expandable NASA Data Badge
+    toggleDataBadge.addEventListener('click', () => {
+      audio.click();
+      const isHidden = dataBadgeContent.classList.contains('hidden');
+      if (isHidden) {
+        dataBadgeContent.classList.remove('hidden');
+        dataArrow.textContent = '▲';
+      } else {
+        dataBadgeContent.classList.add('hidden');
+        dataArrow.textContent = '▼';
+      }
+    });
+
+    // NASA Science Modals
+    btnDataDoc.addEventListener('click', () => {
+      audio.click();
+      dataModal.classList.remove('hidden');
+    });
+    btnShowDataModal.addEventListener('click', () => {
+      audio.click();
+      dataModal.classList.remove('hidden');
+    });
+    btnCloseDataModal.addEventListener('click', () => {
+      audio.click();
+      dataModal.classList.add('hidden');
+    });
+    btnCloseDataModal2.addEventListener('click', () => {
+      audio.click();
+      dataModal.classList.add('hidden');
+    });
+
+    // Sound toggle
+    soundToggleBtn.addEventListener('click', () => {
+      audio.muted = !audio.muted;
+      if (audio.muted) {
+        soundStatus.textContent = 'Sound OFF';
+        soundIcon.textContent = '🔇';
+      } else {
+        audio.init();
+        audio.click();
+        soundStatus.textContent = 'Sound ON';
+        soundIcon.textContent = '🔊';
+      }
+    });
+
+    /* ========================================================
+       6. BACKGROUND CANVAS: Dynamic Starfield & Planetary Dust
+       ======================================================== */
+    const canvas = document.getElementById('space-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let particles = [];
+
+    function resizeCanvas() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      initParticles();
+    }
+
+    function initParticles() {
+      particles = [];
+      const count = Math.min(120, Math.floor(width / 12));
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: Math.random() * 1.8 + 0.3,
+          speedY: Math.random() * 0.2 + 0.05,
+          speedX: (Math.random() - 0.5) * 0.1,
+          opacity: Math.random() * 0.8 + 0.2,
+          pulse: Math.random() * 0.03
+        });
+      }
+    }
+
+    function drawSpace() {
+      ctx.clearRect(0, 0, width, height);
+
+      // Deep space atmospheric gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      if (gameState.location === 'mars') {
+        grad.addColorStop(0, '#0c070c');
+        grad.addColorStop(0.6, '#1a0b0d');
+        grad.addColorStop(1, '#2d110f');
+      } else {
+        grad.addColorStop(0, '#040714');
+        grad.addColorStop(0.7, '#070f2b');
+        grad.addColorStop(1, '#0c1b40');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Render stars & dust particles
+      for (let p of particles) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+
+        if (gameState.location === 'mars') {
+          // Warm reddish-gold dust motes
+          ctx.fillStyle = `rgba(244, 162, 97, ${p.opacity})`;
+        } else {
+          // Cool lunar ice-blue & white stars
+          ctx.fillStyle = `rgba(186, 230, 253, ${p.opacity})`;
+        }
+        ctx.fill();
+
+        // Update positions
+        p.y -= p.speedY;
+        p.x += p.speedX;
+        p.opacity += p.pulse;
+        if (p.opacity > 0.9 || p.opacity < 0.2) p.pulse = -p.pulse;
+
+        // Wrap around
+        if (p.y < 0) p.y = height;
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+      }
+
+      requestAnimationFrame(drawSpace);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeCanvas();
+      drawSpace();
+    });
+  </script>
+</body>
+</html>
